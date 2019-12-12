@@ -27,42 +27,45 @@ namespace NanoJpegApp
 
                     Console.WriteLine("Starting to read {0}...", inFilename);
 
-                    using (NJImage img = new NJImage())
+                    byte[] data = File.ReadAllBytes(inPath);
+                    var img = new Image(data);
+
+                    bool isRgb = img.ChannelCount > 1;
+                    Console.WriteLine($"Success reading {inFilename}: {img.Width}x{img.Height} - {(isRgb ? "RGB" : "Gray")}");
+                    Console.WriteLine();
+
+                    //// Writing ////
+
+                    outPath = Path.ChangeExtension(outPath, isRgb ? ".ppm" : ".pgm");
+                    Console.WriteLine($"Starting to write to {outFilename}...");
+
+                    string outDir = Path.GetDirectoryName(outFilename);
+                    if (outDir != string.Empty && !Directory.Exists(outDir)) { Directory.CreateDirectory(outDir); }
+                    string headerString = string.Format($"P{(img.ChannelCount > 1 ? 6 : 5)}\n{img.Width} {img.Height}\n255\n");
+                    byte[] headerBytes = Encoding.ASCII.GetBytes(headerString);
+
+                    using (var fsOut = File.Create(outPath))
                     {
-                        img.Decode(inPath);
-
-                        Console.WriteLine("Success reading {0}: {1}x{2} - {3}", inFilename, img.Width, img.Height, img.IsColor ? "RGB" : "Gray");
-                        Console.WriteLine();
-
-                        //// Writing ////
-
-                        outPath = Path.ChangeExtension(outPath, img.IsColor ? ".ppm" : ".pgm");
-                        Console.WriteLine("Starting to write to {0}...", outFilename);
-
-                        string outDir = Path.GetDirectoryName(outFilename);
-                        if (outDir != string.Empty && !Directory.Exists(outDir)) Directory.CreateDirectory(outDir);
-                        string headerString = string.Format("P{0}\n{1} {2}\n255\n", (img.IsColor ? 6 : 5), img.Width, img.Height);
-                        byte[] headerBytes = Encoding.ASCII.GetBytes(headerString);
-
-                        using (FileStream fsOut = File.Create(outPath))
-                        {
-                            fsOut.Write(headerBytes, 0, headerBytes.Length);
-
-                            unsafe
-                            {
-                                byte* ptr = img.Image;
-                                for (int i = 0; i < img.ImageSize; i++)
-                                {
-                                    fsOut.WriteByte(ptr[i]);
-                                }
-                            }
-                        }
-
-                        Console.WriteLine("Success writing {0}: {1}bytes", outFilename, headerBytes.Length + img.ImageSize);
+                        fsOut.Write(headerBytes, 0, headerBytes.Length);
+                        fsOut.Write(img.Data, 0, img.Data.Length);
                     }
+
+                    Console.WriteLine($"Success writing {outFilename}: {headerBytes.Length + img.Data.Length}bytes");
                 }
-                catch (NJException njex) { Console.WriteLine("Error decoding jpeg: " + njex.ErrorCode); }
-                catch (Exception ex) { Console.WriteLine("Error: " + ex.Message); }
+                catch (DecodeException njex)
+                {
+                    Console.WriteLine("Error decoding jpeg: " + njex.ErrorCode);
+                    Console.WriteLine(njex.StackTrace);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("Error: " + ex.Message);
+                    Console.WriteLine(ex.StackTrace);
+                }
+
+                Console.WriteLine();
+                Console.WriteLine("Press any key to close...");
+                Console.ReadKey();
             }
         }
     }
